@@ -1,44 +1,80 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
 <form method="get"> 
-    {{ form.as_p }} 
-<label for="category">カテゴリ:</label> 
-<select name="category"> 
-<option value="">すべて</option> 
-<option value="books">本</option> 
-<option value="electronics">電子機器</option> 
-</select> 
-<label for="min_price">最低価格:</label> 
-<input type="number" name="min_price" min="0"> 
-<label for="max_price">最高価格:</label> 
-<input type="number" name="max_price" min="0"> 
-<!-- 並び替えの選択 --> 
-<label for="sort">並び替え:</label> 
-<select name="sort"> 
-<option value="name">名前順</option> 
-<option value="price_asc">価格が安い順</option> 
-<option value="price_desc">価格が高い順</option> 
-</select> 
-<button type="submit">検索</button> 
+    <input type="text" id="searchInput" name="query" value="{{ request.user.searchsettings.query }}" placeholder="検索キーワード"> 
+    <input type="number" name="min_price" value="{{ request.user.searchsettings.min_price }}" placeholder="最低価格"> 
+    <input type="number" name="max_price" value="{{ request.user.searchsettings.max_price }}" placeholder="最高価格"> 
+    <select name="sort"> 
+        <option value="price_asc" {% if request.user.searchsettings.sort == 'price_asc' %}selected{% endif %}>価格が安い順</option> 
+        <option value="price_desc" {% if request.user.searchsettings.sort == 'price_desc' %}selected{% endif %}>価格が高い順</option> 
+    </select> 
+    <button type="submit">検索</button> 
 </form>
-<ul> 
-    {% for product in results %} 
-        <li>{{ product.name }} - {{ product.price }}</li> 
-    {% empty %} 
-        <li>No results found</li> 
+
+<ul id="results">
+    {% for product in page_obj %}
+        <div>
+            <h3>{{ product.name }}</h3>
+            <p>{{ product.price }}円</p>
+            <button onclick="addToCart({{ product.id }})">カートに追加</button>
+        </div>
     {% endfor %} 
-</ul> 
+</ul>
+
+<a href="{% url 'cart_list' %}">カート一覧</a>
+
 <div class="pagination"> 
     <span class="step-links"> 
         {% if page_obj.has_previous %} 
-            <a href="?page=1">最初</a> 
+            <a href="?page=1">&laquo; 最初</a> 
             <a href="?page={{ page_obj.previous_page_number }}">前へ</a> 
         {% endif %} 
-    
-        <span>ページ {{ page_obj.number }} /  
-{{ page_obj.paginator.num_pages }}</span> 
-    
+
+        <span class="current"> 
+            ページ {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 
+        </span> 
+
         {% if page_obj.has_next %} 
             <a href="?page={{ page_obj.next_page_number }}">次へ</a> 
-            <a href="?page={{ page_obj.paginator.num_pages }}">最後</a> 
+            <a href="?page={{ page_obj.paginator.num_pages }}">最後 &raquo;</a> 
         {% endif %} 
     </span> 
-</div> 
+</div>
+
+<a href="{% url 'export_search_results' %}?query={{ request.GET.query }}&min_price={{ request.GET.min_price }}&max_price={{ request.GET.max_price }}&sort={{ request.GET.sort }}" class="btn btn-primary">検索結果をエクスポート</a>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function addToCart(productId) {
+        fetch(`/add_to_cart/${productId}/`, {
+            method: 'GET',
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const socket = new WebSocket('ws://localhost:8000/ws/search/');
+        const searchInput = document.getElementById('searchInput');
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                let query = this.value;
+                socket.send(JSON.stringify({ 'query': query }));
+            });
+        }
+
+        socket.onmessage = function(event) {
+            let data = JSON.parse(event.data);
+            // 検索結果をページに反映
+            document.getElementById('results').innerHTML = data.results.map(r => `<li>${r.name} - ${r.price}円</li>`).join('');
+        };
+    });
+</script>
+{% endblock %}

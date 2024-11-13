@@ -1,0 +1,26 @@
+<!-- cart_list.html -->
+<h2>カート一覧</h2>
+<table>
+    <tr>
+        <th>商品名</th>
+        <th>価格</th>
+        <th>数量</th>
+        <th>操作</th>
+    </tr>
+    {% for item in cart_items %}
+    <tr>
+        <td>{{ item.product.name }}</td>
+        <td>{{ item.product.price }}円</td>
+        <td>{{ item.quantity }}</td>
+        <!-- 新規追加: 削除ボタン -->
+        <td>
+            <form action="{% url 'remove_from_cart' item.id %}" method="post">
+                {% csrf_token %}
+                <button type="submit">削除</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<a href="{% url 'search_view' %}">商品検索に戻る</a>

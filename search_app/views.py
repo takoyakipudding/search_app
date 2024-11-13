@@ -2,80 +2,121 @@ from django.shortcuts import render, get_object_or_404, redirect
 from .models import Product, Category 
 from .forms import ProductForm, SearchForm 
 from django.core.paginator import Paginator 
+from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
+from django.core.cache import cache 
+from .models import SearchHistory 
+import csv 
+from django.http import HttpResponse 
+from .models import SearchSettings
+from django.contrib.auth import login
+from .forms import SignUpForm
+from django.views import View
+from django.db.models import Q
+from django.http import JsonResponse
+from .models import Product, CartItem
 
+def signup_view(request):
+    if request.method == 'POST':
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            return redirect('/')
+    else:
+        form = SignUpForm()
+    return render(request, 'signup.html', {'form': form})
 
-def product_create(request): 
-    if request.method == 'POST': 
-        form = ProductForm(request.POST) 
-        if form.is_valid(): 
-            form.save() 
-            return redirect('product_list') 
-    else: 
-        form = ProductForm() 
-    return render(request, 'product_form.html', {'form': form}) 
- 
-def product_detail(request, pk): 
-    product = get_object_or_404(Product, pk=pk) 
-    return render(request, 'product_detail.html', {'product': product}) 
- 
-def product_update(request, pk): 
-    product = get_object_or_404(Product, pk=pk) 
-    if request.method == 'POST': 
-        form = ProductForm(request.POST, instance=product) 
-        if form.is_valid(): 
-            form.save() 
-            return redirect('product_detail', pk=product.pk) 
-    else: 
-        form = ProductForm(instance=product) 
-   # product オブジェクトをテンプレートに渡す 
-    return  render(request,  'product_form.html',  {'form':  form,  'product': product})
-
-def product_delete(request, pk): 
-    product = get_object_or_404(Product, pk=pk) 
-    if request.method == 'POST': 
-        product.delete() 
-        return redirect('product_list') 
-    return render(request, 'product_confirm_delete.html', {'product': product}) 
- 
-def product_list(request): 
-    products = Product.objects.all() 
-    return render(request, 'product_list.html', {'products': products}) 
- 
-def search_view(request): 
-    form = SearchForm(request.GET or None) 
-    results = Product.objects.all()  # クエリセットの初期化 
-    if form.is_valid(): 
-        query = form.cleaned_data['query'] 
-        if query: 
-            results = results.filter(name__icontains=query) 
-    # カテゴリフィルタリング 
-    category_name = request.GET.get('category') 
-    if category_name: 
-        try: 
-            # カテゴリ名に基づいてカテゴリIDを取得 
-            category = Category.objects.get(name=category_name) 
-            results = results.filter(category_id=category.id) 
-        except Category.DoesNotExist: 
-            results = results.none() # 存在しないカテゴリの場合、結果を空にする 
-            category = None 
-    # 価格のフィルタリング（最低価格・最高価格） 
-    min_price = request.GET.get('min_price') 
+def search_view(request):
+    query = request.GET.get('query', '').strip()
+    min_price = request.GET.get('min_price')
     max_price = request.GET.get('max_price')
-    if min_price: 
-        results = results.filter(price__gte=min_price) 
-    if max_price: 
-        results = results.filter(price__lte=max_price) 
-     
-    # 並び替え処理 
-    sort_by = request.GET.get('sort', 'name') 
-    if sort_by == 'price_asc': 
-        results = results.order_by('price') 
-    elif sort_by == 'price_desc': 
-        results = results.order_by('-price') 
+    sort = request.GET.get('sort')
+    products = Product.objects.all()
+
+    # 部分一致検索
+    if query:
+        products = products.filter(Q(name__icontains=query) | Q(description__icontains=query))
+
+    # 最低価格、最高価格フィルタリング
+    if min_price:
+        products = products.filter(price__gte=min_price)
+    if max_price:
+        products = products.filter(price__lte=max_price)
+
+    # 並び順
+    if sort == 'price_asc':
+        products = products.order_by('price')
+    elif sort == 'price_desc':
+        products = products.order_by('-price')
+
+    # ページネーション設定
+    paginator = Paginator(products, 10)  # 1ページに表示するアイテム数
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'search.html', {'page_obj': page_obj, 'query': query})
  
-    # クエリセットをリストに変換せず、直接Paginatorに渡す 
-    paginator = Paginator(results, 10) 
-    page_number = request.GET.get('page') 
-    page_obj = paginator.get_page(page_number) 
-     
-    return render(request, 'search.html', {'form': form, 'page_obj': page_obj, 'results': results})
+def export_search_results(request):
+    query = request.GET.get('query', '').strip()
+    min_price = request.GET.get('min_price')
+    max_price = request.GET.get('max_price')
+    sort = request.GET.get('sort')
+    
+    # 検索条件に基づいてProductをフィルタリング
+    products = Product.objects.all()
+
+    if query:
+        products = products.filter(Q(name__icontains=query) | Q(description__icontains=query))
+
+    if min_price:
+        products = products.filter(price__gte=min_price)
+    if max_price:
+        products = products.filter(price__lte=max_price)
+
+    # 並び順
+    if sort == 'price_asc':
+        products = products.order_by('price')
+    elif sort == 'price_desc':
+        products = products.order_by('-price')
+
+    # CSVエクスポート
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="search_results.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Name', 'Description', 'Price', 'Category'])
+    for product in products:
+        writer.writerow([product.name, product.description, product.price, product.category.name])
+
+    return response
+
+def save_search_settings(request): 
+    query = request.GET.get('query') 
+    sort = request.GET.get('sort') 
+    min_price = request.GET.get('min_price') 
+    max_price = request.GET.get('max_price') 
+ 
+    SearchSettings.objects.update_or_create( 
+        user=request.user, 
+        defaults={'query': query, 'sort': sort, 'min_price': min_price, 'max_price': max_price} 
+    )
+
+# カートに商品を追加するビュー
+def add_to_cart(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    cart_item, created = CartItem.objects.get_or_create(product=product)
+    if not created:
+        cart_item.quantity += 1
+        cart_item.save()
+    return JsonResponse({'message': f'{product.name}がカートに追加されました', 'quantity': cart_item.quantity})
+
+# カートの商品一覧を表示するビュー
+def cart_list(request):
+    cart_items = CartItem.objects.all()
+    return render(request, 'cart_list.html', {'cart_items': cart_items})
+
+# カートから商品を削除するビュー
+def remove_from_cart(request, item_id):
+    cart_item = get_object_or_404(CartItem, id=item_id)
+    cart_item.delete()
+    return redirect('cart_list')

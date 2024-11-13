@@ -1,0 +1,85 @@
+/* User navigation styles */
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #555 !important; /* 使用する背景色を明示 */
+}
+
+head {
+    background-color: #555 !important;
+}
+
+header {
+    background-color: #555 !important;
+}
+
+nav .user-nav {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+}
+
+.user-nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 15px; 
+}
+
+.user-nav ul li {
+    display: inline;
+    font-size: 14px;
+    color: #555;
+}
+
+.user-nav ul li a {
+    text-decoration: none;
+    color: #333;
+    font-weight: bold;
+    padding: 5px 10px;
+    border-radius: 5px;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.user-nav ul li a:hover {
+    background-color: #007BFF;
+    color: white;
+}
+
+/* Additional styles for responsive */
+@media (max-width: 768px) {
+    .user-nav {
+        top: 15px;
+        right: 15px;
+    }
+
+    .user-nav ul {
+        gap: 10px;
+    }
+
+    .user-nav ul li a {
+        font-size: 12px;
+        padding: 3px 8px;
+    }
+}
+
+h2 {
+    color: #333;
+}
+
+form {
+    margin: 20px 0;
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #45a049;
+}

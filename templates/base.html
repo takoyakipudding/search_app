@@ -1,0 +1,37 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My Search App{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+<header>
+    <h2 style="margin: 0;">Search App</h2>
+    <nav class="user-nav">
+        <ul>
+            {% if user.is_authenticated %}
+                <li><span style="font-weight: bold;">Logged in as {{ user.username }}</span></li>
+                <li><a href="{% url 'logout' %}">Logout</a></li>
+            {% else %}
+                <li><a href="{% url 'login' %}">Login</a></li>
+                <li><a href="{% url 'signup' %}">Sign Up</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+</header>
+    
+<main>
+    {% block content %}
+    {% endblock %}
+</main>
+
+{% block extra_scripts %}
+{% endblock %}
+
+</body>
+</html>
