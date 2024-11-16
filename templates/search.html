@@ -1,16 +1,15 @@
 {% extends 'base.html' %}
 
 {% block content %}
-
-<form method="get"> 
-    <input type="text" id="searchInput" name="query" value="{{ request.user.searchsettings.query }}" placeholder="検索キーワード"> 
-    <input type="number" name="min_price" value="{{ request.user.searchsettings.min_price }}" placeholder="最低価格"> 
-    <input type="number" name="max_price" value="{{ request.user.searchsettings.max_price }}" placeholder="最高価格"> 
-    <select name="sort"> 
-        <option value="price_asc" {% if request.user.searchsettings.sort == 'price_asc' %}selected{% endif %}>価格が安い順</option> 
-        <option value="price_desc" {% if request.user.searchsettings.sort == 'price_desc' %}selected{% endif %}>価格が高い順</option> 
-    </select> 
-    <button type="submit">検索</button> 
+<form method="get">
+    <input type="text" id="searchInput" name="query" value="{{ request.user.searchsettings.query }}" placeholder="検索キーワード">
+    <input type="number" name="min_price" value="{{ request.user.searchsettings.min_price }}" placeholder="最低価格">
+    <input type="number" name="max_price" value="{{ request.user.searchsettings.max_price }}" placeholder="最高価格">
+    <select name="sort">
+        <option value="price_asc" {% if request.user.searchsettings.sort == 'price_asc' %}selected{% endif %}>価格が安い順</option>
+        <option value="price_desc" {% if request.user.searchsettings.sort == 'price_desc' %}selected{% endif %}>価格が高い順</option>
+    </select>
+    <button type="submit">検索</button>
 </form>
 
 <ul id="results">
@@ -18,40 +17,44 @@
         <div>
             <h3>{{ product.name }}</h3>
             <p>{{ product.price }}円</p>
-            <button onclick="addToCart({{ product.id }})">カートに追加</button>
+            <!-- <button onclick="addToCart({{ product.id }})">カートに追加</button> -->
+            <button class="add-to-cart" data-product-id="{{ product.id }}">カートに追加</button>
         </div>
-    {% endfor %} 
+    {% endfor %}
 </ul>
 
 <a href="{% url 'cart_list' %}">カート一覧</a>
 
-<div class="pagination"> 
-    <span class="step-links"> 
-        {% if page_obj.has_previous %} 
-            <a href="?page=1">&laquo; 最初</a> 
-            <a href="?page={{ page_obj.previous_page_number }}">前へ</a> 
-        {% endif %} 
+<div class="pagination">
+    <span class="step-links">
+        {% if page_obj.has_previous %}
+            <a href="?page=1">&laquo; 最初</a>
+            <a href="?page={{ page_obj.previous_page_number }}">前へ</a>
+        {% endif %}
 
-        <span class="current"> 
-            ページ {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 
-        </span> 
+        <span class="current">
+            ページ {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+        </span>
 
-        {% if page_obj.has_next %} 
-            <a href="?page={{ page_obj.next_page_number }}">次へ</a> 
-            <a href="?page={{ page_obj.paginator.num_pages }}">最後 &raquo;</a> 
-        {% endif %} 
-    </span> 
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">次へ</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}">最後 &raquo;</a>
+        {% endif %}
+    </span>
 </div>
 
-<a href="{% url 'export_search_results' %}?query={{ request.GET.query }}&min_price={{ request.GET.min_price }}&max_price={{ request.GET.max_price }}&sort={{ request.GET.sort }}" class="btn btn-primary">検索結果をエクスポート</a>
-
+<a href="{% url 'export_search_results' %}?query={{ request.GET.query|default:'' }}&min_price={{ request.GET.min_price|default:'' }}&max_price={{ request.GET.max_price|default:'' }}&sort={{ request.GET.sort|default:'' }}" class="btn btn-primary">検索結果をエクスポート</a>
 {% endblock %}
 
 {% block extra_scripts %}
+
 <script>
     function addToCart(productId) {
         fetch(`/add_to_cart/${productId}/`, {
             method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         })
         .then(response => response.json())
         .then(data => {
@@ -72,7 +75,6 @@
 
         socket.onmessage = function(event) {
             let data = JSON.parse(event.data);
-            // 検索結果をページに反映
             document.getElementById('results').innerHTML = data.results.map(r => `<li>${r.name} - ${r.price}円</li>`).join('');
         };
     });

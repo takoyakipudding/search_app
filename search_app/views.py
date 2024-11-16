@@ -104,16 +104,36 @@ def save_search_settings(request):
 # カートに商品を追加するビュー
 def add_to_cart(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-    cart_item, created = CartItem.objects.get_or_create(product=product)
+    
+    # 現在のユーザーと商品に紐づくカートアイテムを取得、存在しない場合は新規作成
+    cart_item, created = CartItem.objects.get_or_create(
+        user=request.user,  # ユーザーを追加
+        product=product,
+        defaults={'quantity': 1},
+    )
+    
+    # 既存のカートアイテムの場合は数量を増加
     if not created:
         cart_item.quantity += 1
         cart_item.save()
-    return JsonResponse({'message': f'{product.name}がカートに追加されました', 'quantity': cart_item.quantity})
+    
+    return JsonResponse({
+        'message': f'{product.name}がカートに追加されました',
+        'quantity': cart_item.quantity,
+    })
 
 # カートの商品一覧を表示するビュー
 def cart_list(request):
-    cart_items = CartItem.objects.all()
-    return render(request, 'cart_list.html', {'cart_items': cart_items})
+    # カート内の商品を取得
+    cart_items = CartItem.objects.filter(user=request.user)
+    
+    # 合計金額を計算
+    total_price = sum(item.product.price * item.quantity for item in cart_items)
+    
+    return render(request, 'cart_list.html', {
+        'cart_items': cart_items,
+        'total_price': total_price,  # 合計金額をテンプレートに渡す
+    })
 
 # カートから商品を削除するビュー
 def remove_from_cart(request, item_id):
